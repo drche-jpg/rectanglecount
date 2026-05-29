@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>นับรูปสี่เหลี่ยม · Bottom-Right Corner Method</title>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --bg2: #fff;
+    --bg3: #f0ede6;
+    --border: #e0ddd5;
+    --border2: #ccc9bf;
+    --text: #1a1918;
+    --text2: #6b6a65;
+    --text3: #9b9a95;
+    --teal: #0f6e56;
+    --teal-bg: #e1f5ee;
+    --teal-mid: #5dcaa5;
+    --blue: #185fa5;
+    --blue-bg: #e6f1fb;
+    --blue-mid: #85b7eb;
+    --amber: #854f0b;
+    --amber-bg: #faeeda;
+    --amber-mid: #fac775;
+    --coral: #993c1d;
+    --coral-bg: #faece7;
+    --cell: 44px;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ── Layout ── */
+  .wrapper { max-width: 1100px; margin: 0 auto; padding: 20px 16px; }
+  .top-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .top-bar h1 { font-size: 20px; font-weight: 600; line-height: 1.3; }
+  .top-bar .sub { font-size: 13px; color: var(--text2); margin-top: 3px; }
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 5px 10px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); }
+  .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: #ccc; transition: background .3s; }
+  .status-pill .dot.loading { background: var(--amber-mid); animation: pulse 1s infinite; }
+  .status-pill .dot.ready { background: var(--teal-mid); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .main-grid { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
+  @media(max-width:800px) { .main-grid { grid-template-columns: 1fr; } }
+
+  /* ── Cards ── */
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .card-head { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card-head h2 { font-size: 14px; font-weight: 600; }
+  .card-body { padding: 14px 16px; }
+
+  /* ── Controls ── */
+  .ctrl-row { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 7px; border: 1px solid var(--border2); background: var(--bg2); font-size: 12px; font-weight: 500; color: var(--text); cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .btn:hover { background: var(--bg3); }
+  .btn:active { transform: scale(.97); }
+  .btn.primary { background: var(--teal-bg); border-color: var(--teal-mid); color: var(--teal); }
+  .btn.primary:hover { background: #c8eddf; }
+  .btn.danger { background: var(--coral-bg); border-color: #f0997b; color: var(--coral); }
+  .btn.danger:hover { background: #f5c4b3; }
+  .btn.amber { background: var(--amber-bg); border-color: var(--amber-mid); color: var(--amber); }
+  .btn.sm { padding: 4px 8px; font-size: 11px; }
+  .sep { width: 1px; height: 20px; background: var(--border); }
+
+  /* Grid size controls */
+  .size-ctrl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+  .size-ctrl input[type=number] { width: 44px; padding: 4px 6px; border: 1px solid var(--border2); border-radius: 6px; font-size: 13px; text-align: center; background: var(--bg2); color: var(--text); }
+
+  /* ── Grid Canvas ── */
+  .grid-area { padding: 16px; overflow-x: auto; }
+  .grid-wrap { display: inline-flex; flex-direction: column; gap: 2px; user-select: none; }
+  .grid-row { display: flex; gap: 2px; }
+  .grid-cell {
+    width: var(--cell); height: var(--cell);
+    border-radius: 6px;
+    border: 1.5px solid var(--border);
+    background: var(--bg3);
+    cursor: pointer;
+    transition: background .1s, border-color .1s, transform .08s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .grid-cell:hover { border-color: var(--teal-mid); transform: scale(1.06); z-index: 2; }
+  .grid-cell.filled {
+    background: var(--bg2);
+    border-color: var(--border2);
+  }
+  .grid-cell.filled:hover { border-color: var(--teal-mid); }
+
+  /* Value display modes */
+  .grid-cell .val-w { color: var(--blue); }
+  .grid-cell .val-h { color: var(--teal); }
+  .grid-cell .val-v { color: #553ab7; font-size: 15px; }
+  .grid-cell .val-wh { font-size: 10px; display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
+  .grid-cell .val-wh .row1 { color: var(--blue); }
+  .grid-cell .val-wh .row2 { color: var(--teal); }
+  .grid-cell .val-wh .row3 { color: #553ab7; font-size: 12px; font-weight: 700; border-top: 1px solid #e0ddf5; padding-top: 1px; margin-top: 1px; }
+
+  /* highlight states */
+  .grid-cell.hl-max { background: #f5f0ff; border-color: #a89de0; }
+  .grid-cell.hl-max .val-v { color: #3d2fa0; }
+  .grid-cell.hl-high { background: #fff8e6; border-color: var(--amber-mid); }
+  .grid-cell.hl-high .val-v { color: var(--amber); }
+
+  /* ── View mode tabs ── */
+  .view-tabs { display: flex; gap: 4px; }
+  .vtab { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; border: 1px solid transparent; color: var(--text2); transition: all .15s; }
+  .vtab:hover { background: var(--bg3); }
+  .vtab.active { background: var(--blue-bg); border-color: var(--blue-mid); color: var(--blue); }
+
+  /* ── Presets ── */
+  .preset-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+  .preset-btn { padding: 8px 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg2); cursor: pointer; text-align: center; transition: all .15s; }
+  .preset-btn:hover { background: var(--bg3); border-color: var(--border2); }
+  .preset-btn .pname { font-size: 11px; font-weight: 600; color: var(--text); display: block; }
+  .preset-btn .pans { font-size: 13px; font-weight: 700; color: var(--teal); display: block; margin-top: 2px; }
+  .preset-btn .psize { font-size: 10px; color: var(--text3); display: block; margin-top: 1px; }
+
+  /* ── Results Panel ── */
+  .result-main { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+  .result-main .num { font-size: 42px; font-weight: 700; color: var(--teal); line-height: 1; }
+  .result-main .label { font-size: 13px; color: var(--text2); }
+  .result-meta { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+  .meta-card { background: var(--bg3); border-radius: 8px; padding: 8px 10px; text-align: center; }
+  .meta-card .mv { font-size: 16px; font-weight: 600; }
+  .meta-card .ml { font-size: 10px; color: var(--text2); margin-top: 2px; }
+  .meta-card.blue { background: var(--blue-bg); }
+  .meta-card.blue .mv { color: var(--blue); }
+  .meta-card.teal { background: var(--teal-bg); }
+  .meta-card.teal .mv { color: var(--teal); }
+  .meta-card.amber { background: var(--amber-bg); }
+  .meta-card.amber .mv { color: var(--amber); }
+
+  /* Row breakdown */
+  .breakdown { margin-top: 10px; }
+  .breakdown-title { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .brow { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .brow:last-child { border-bottom: none; }
+  .brow .rlabel { color: var(--text2); min-width: 50px; }
+  .brow .rbar-wrap { flex: 1; height: 10px; background: var(--bg3); border-radius: 5px; overflow: hidden; }
+  .brow .rbar { height: 100%; background: var(--teal-mid); border-radius: 5px; transition: width .4s ease; }
+  .brow .rval { min-width: 36px; text-align: right; font-weight: 600; color: var(--teal); }
+
+  /* Step explanation */
+  .steps-section { margin-top: 12px; }
+  .step-item { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; line-height: 1.5; }
+  .step-item:last-child { border-bottom: none; }
+  .step-num { width: 20px; height: 20px; border-radius: 50%; background: var(--teal-bg); color: var(--teal); font-weight: 700; font-size: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+  .step-txt { color: var(--text2); flex: 1; }
+  .step-txt b { color: var(--text); }
+
+  /* Python console */
+  .py-console { background: #1a1a1a; border-radius: 8px; padding: 10px 12px; font-family: 'Courier New', monospace; font-size: 11px; color: #a8e6cf; max-height: 120px; overflow-y: auto; line-height: 1.6; }
+  .py-console .py-in { color: #87ceeb; }
+  .py-console .py-out { color: #a8e6cf; }
+  .py-console .py-err { color: #ff8a80; }
+
+  /* Loading overlay */
+  .loading-overlay { position: fixed; inset: 0; background: rgba(247,246,242,.92); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; gap: 12px; }
+  .loading-overlay h2 { font-size: 18px; font-weight: 600; }
+  .loading-overlay p { font-size: 13px; color: var(--text2); text-align: center; max-width: 280px; }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--teal); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress-bar { width: 200px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--teal-mid); border-radius: 3px; transition: width .3s; }
+
+  /* Tooltip */
+  .tooltip { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #1a1918; color: #fff; font-size: 10px; padding: 4px 7px; border-radius: 5px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 10; }
+  .grid-cell:hover .tooltip { opacity: 1; }
+
+  .tag { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 600; }
+  .tag-py { background: #faf3d0; color: #7a6200; border: 1px solid #e8d96b; }
+
+  .no-result { text-align: center; padding: 24px 0; color: var(--text3); font-size: 13px; }
+  .empty-icon { font-size: 32px; display: block; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <h2>กำลังโหลด Python Engine</h2>
+  <p>โหลด Pyodide (Python via WebAssembly)<br>อาจใช้เวลา 10–20 วินาที</p>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:5%"></div></div>
+  <p id="loadMsg" style="font-size:11px;color:var(--text3)">กำลังดาวน์โหลด...</p>
+</div>
+
+<div class="wrapper">
+  <div class="top-bar">
+    <div>
+      <h1>🔢 Rectangle Counter</h1>
+      <div class="sub">วาดรูปทรงบนกริด · Python คำนวณวิธีพิกัดมุมขวาล่างให้ทันที</div>
+    </div>
+    <div class="status-pill">
+      <div class="dot loading" id="statusDot"></div>
+      <span id="statusText">กำลังโหลด Python...</span>
+      <span class="tag tag-py">Pyodide</span>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <!-- LEFT: Grid editor -->
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-head">
+          <h2>🎨 วาดรูปทรง</h2>
+          <div class="ctrl-row">
+            <div class="size-ctrl">
+              แถว <input type="number" id="rowInput" value="6" min="2" max="12"> ×
+              คอล. <input type="number" id="colInput" value="6" min="2" max="12">
+              <button class="btn sm" onclick="resizeGrid()">ปรับขนาด</button>
+            </div>
+          </div>
+        </div>
+        <div class="card-head" style="border-top:none;padding-top:8px">
+          <div class="ctrl-row">
+            <button class="btn primary" onclick="runPython()">▶ คำนวณ</button>
+            <div class="sep"></div>
+            <button class="btn" onclick="fillAll()">เติมทั้งหมด</button>
+            <button class="btn danger" onclick="clearAll()">ล้าง</button>
+            <div class="sep"></div>
+            <div class="view-tabs">
+              <div class="vtab active" id="vt-val" onclick="setView('val')">W×H</div>
+              <div class="vtab" id="vt-w" onclick="setView('w')">W</div>
+              <div class="vtab" id="vt-h" onclick="setView('h')">H</div>
+              <div class="vtab" id="vt-none" onclick="setView('none')">เปล่า</div>
+            </div>
+          </div>
+        </div>
+        <div class="grid-area">
+          <div class="grid-wrap" id="gridWrap"></div>
+        </div>
+        <div class="card-body" style="padding-top:8px;border-top:1px solid var(--border);background:var(--bg)">
+          <div class="ctrl-row" style="font-size:11px;color:var(--text2)">
+            💡 คลิกเซลล์เพื่อเปิด/ปิด · คลิกค้างแล้วลากเพื่อวาดต่อเนื่อง · กด "คำนวณ" เพื่อรัน Python
+          </div>
+        </div>
+      </div>
+
+      <!-- Python console -->
+      <div class="card">
+        <div class="card-head">
+          <h2>🐍 Python Output</h2>
+          <span class="tag tag-py">รันจริงใน Browser</span>
+        </div>
+        <div class="card-body" style="padding:10px 12px">
+          <div class="py-console" id="pyConsole">
+            <div class="py-out">Python engine กำลังโหลด...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Controls + Results -->
+    <div>
+      <!-- Presets -->
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-head"><h2>📚 โจทย์ตัวอย่าง</h2></div>
+        <div class="card-body">
+          <div class="preset-grid">
+            <div class="preset-btn" onclick="loadPreset('q1')">
+              <span class="pname">ข้อ 1</span>
+              <span class="pans">56</span>
+              <span class="psize">4×5 ไม่สมมาตร</span>
+            </div>
+            <div class="preset-btn" onclick="loadPreset('q2')">
+              <span class="pname">ข้อ 2</span>
+              <span class="pans">117</span>
+              <span class="psize">6×6 รูปบวก</span>
+            </div>
+            <div class="preset-btn" onclick="loadPreset('q3')">
+              <span class="pname">ข้อ 3</span>
+              <span class="pans">141</span>
+              <span class="psize">6×6 U-Chamber</span>
+            </div>
+            <div class="preset-btn" onclick="loadPreset('q4')">
+              <span class="pname">ข้อ 4</span>
+              <span class="pans">264</span>
+              <span class="psize">6×7 บันได</span>
+            </div>
+            <div class="preset-btn" onclick="loadPreset('q5')">
+              <span class="pname">ข้อ 5</span>
+              <span class="pans">175</span>
+              <span class="psize">6×6 ปราการ</span>
+            </div>
+            <div class="preset-btn" onclick="loadPreset('q6')">
+              <span class="pname">ข้อ 6</span>
+              <span class="pans">171</span>
+              <span class="psize">6×6 ตัว H</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div class="card">
+        <div class="card-head"><h2>📊 ผลการคำนวณ</h2></div>
+        <div class="card-body" id="resultBody">
+          <div class="no-result">
+            <span class="empty-icon">🔲</span>
+            วาดรูปทรงแล้วกด <b>▶ คำนวณ</b><br>Python จะคำนวณให้ทันที
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Pyodide -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let ROWS = 6, COLS = 6;
+let gridState = [];
+let pyodide = null;
+let pyReady = false;
+let viewMode = 'val'; // val | w | h | none
+let resultData = null;
+let isDragging = false;
+let dragValue = null;
+
+// ─── Presets ─────────────────────────────────────────────────────────────────
+const PRESETS = {
+  q1: { rows:4, cols:5, cells:[
+    [1,1,1,1,1],
+    [1,1,1,1,0],
+    [0,0,1,1,0],
+    [0,0,1,1,0]
+  ]},
+  q2: { rows:6, cols:6, cells:[
+    [0,0,1,1,0,0],
+    [0,0,1,1,0,0],
+    [1,1,1,1,1,1],
+    [1,1,1,1,1,1],
+    [0,0,1,1,0,0],
+    [0,0,1,1,0,0]
+  ]},
+  q3: { rows:6, cols:6, cells:[
+    [1,1,0,0,1,1],
+    [1,1,0,0,1,1],
+    [1,1,0,0,1,1],
+    [1,1,0,0,1,1],
+    [1,1,0,0,1,1],
+    [1,1,1,1,1,1]
+  ]},
+  q4: { rows:6, cols:7, cells:[
+    [0,0,0,0,0,0,1],
+    [0,0,0,0,0,1,1],
+    [0,0,0,0,1,1,1],
+    [0,0,0,1,1,1,1],
+    [0,0,1,1,1,1,1],
+    [1,1,1,1,1,1,1]
+  ]},
+  q5: { rows:6, cols:6, cells:[
+    [1,0,1,0,1,0],
+    [1,1,1,1,1,1],
+    [0,1,1,1,1,0],
+    [0,1,1,1,1,0],
+    [0,1,1,1,1,0],
+    [0,1,1,1,1,0]
+  ]},
+  q6: { rows:6, cols:6, cells:[
+    [1,1,0,0,1,1],
+    [1,1,0,0,1,1],
+    [1,1,1,1,1,1],
+    [1,1,1,1,1,1],
+    [1,1,0,0,1,1],
+    [1,1,0,0,1,1]
+  ]}
+};
+
+// ─── Python Code ─────────────────────────────────────────────────────────────
+const PYTHON_CODE = `
+import json
+
+def compute_rectangles(grid_json):
+    grid = json.loads(grid_json)
+    rows = len(grid)
+    cols = len(grid[0]) if rows > 0 else 0
+    
+    # W[r][c] = consecutive filled cells going LEFT including (r,c)
+    W = [[0]*cols for _ in range(rows)]
+    for r in range(rows):
+        for c in range(cols):
+            if grid[r][c]:
+                W[r][c] = (W[r][c-1] + 1) if c > 0 else 1
+            else:
+                W[r][c] = 0
+    
+    # H[r][c] = consecutive filled cells going UP including (r,c)
+    H = [[0]*cols for _ in range(rows)]
+    for r in range(rows):
+        for c in range(cols):
+            if grid[r][c]:
+                H[r][c] = (H[r-1][c] + 1) if r > 0 else 1
+            else:
+                H[r][c] = 0
+    
+    # V[r][c] = number of rectangles with bottom-right corner at (r,c)
+    # = sum over h=1..H[r][c] of min(W[r][c], W[r-1][c], ..., W[r-h+1][c])
+    V = [[0]*cols for _ in range(rows)]
+    total = 0
+    row_sums = []
+    
+    for r in range(rows):
+        row_total = 0
+        for c in range(cols):
+            if grid[r][c]:
+                min_w = W[r][c]
+                v = 0
+                for h in range(1, H[r][c]+1):
+                    rr = r - h + 1
+                    min_w = min(min_w, W[rr][c])
+                    v += min_w
+                V[r][c] = v
+                total += v
+                row_total += v
+        row_sums.append(row_total)
+    
+    filled_cells = sum(1 for r in range(rows) for c in range(cols) if grid[r][c])
+    max_v = max((V[r][c] for r in range(rows) for c in range(cols) if grid[r][c]), default=0)
+    
+    result = {
+        "total": total,
+        "W": W,
+        "H": H,
+        "V": V,
+        "row_sums": row_sums,
+        "filled_cells": filled_cells,
+        "max_v": max_v,
+        "rows": rows,
+        "cols": cols
+    }
+    return json.dumps(result)
+
+print("Python algorithm loaded ✓")
+`;
+
+// ─── Init Pyodide ─────────────────────────────────────────────────────────────
+async function initPyodide() {
+  const prog = document.getElementById('progressFill');
+  const msg = document.getElementById('loadMsg');
+
+  try {
+    prog.style.width = '20%';
+    msg.textContent = 'โหลด Pyodide runtime...';
+    pyodide = await loadPyodide({
+      indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/"
+    });
+
+    prog.style.width = '70%';
+    msg.textContent = 'เตรียม Python environment...';
+    await pyodide.runPythonAsync(PYTHON_CODE);
+
+    prog.style.width = '100%';
+    msg.textContent = 'พร้อมแล้ว!';
+    pyReady = true;
+
+    setTimeout(() => {
+      document.getElementById('loadingOverlay').style.display = 'none';
+    }, 400);
+
+    document.getElementById('statusDot').className = 'dot ready';
+    document.getElementById('statusText').textContent = 'Python พร้อมใช้งาน';
+    logPy('out', '>>> Python engine ready (Pyodide v0.25.1)');
+    logPy('out', '>>> Algorithm: Bottom-Right Corner Method');
+    logPy('out', '>>> วาดรูปและกด ▶ คำนวณ เพื่อเริ่มต้น');
+
+  } catch(e) {
+    prog.style.width = '100%';
+    prog.style.background = '#ff8a80';
+    msg.textContent = 'เกิดข้อผิดพลาด: ' + e.message;
+    document.getElementById('statusDot').className = 'dot';
+    document.getElementById('statusText').textContent = 'โหลดไม่ได้';
+    console.error('Pyodide error:', e);
+  }
+}
+
+// ─── Grid Rendering ───────────────────────────────────────────────────────────
+function initGrid(rows, cols, preset) {
+  ROWS = rows; COLS = cols;
+  gridState = preset
+    ? preset.map(r => r.map(v => !!v))
+    : Array.from({length: rows}, () => Array(cols).fill(false));
+
+  document.getElementById('rowInput').value = rows;
+  document.getElementById('colInput').value = cols;
+  renderGrid();
+}
+
+function renderGrid() {
+  const wrap = document.getElementById('gridWrap');
+  wrap.innerHTML = '';
+
+  for (let r = 0; r < ROWS; r++) {
+    const row = document.createElement('div');
+    row.className = 'grid-row';
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'grid-cell' + (gridState[r][c] ? ' filled' : '');
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+
+      // Show values if result available
+      if (resultData && gridState[r][c]) {
+        const vw = resultData.W[r][c];
+        const vh = resultData.H[r][c];
+        const vv = resultData.V[r][c];
+        if (viewMode === 'val') {
+          const inner = document.createElement('div');
+          inner.className = 'val-wh';
+          inner.innerHTML = `<span class="row1">W=${vw}</span><span class="row2">H=${vh}</span><span class="row3">${vv}</span>`;
+          cell.appendChild(inner);
+          if (vv === resultData.max_v) cell.classList.add('hl-max');
+          else if (vv >= resultData.max_v * 0.7) cell.classList.add('hl-high');
+        } else if (viewMode === 'w') {
+          const s = document.createElement('span');
+          s.className = 'val-w';
+          s.textContent = vw;
+          cell.appendChild(s);
+        } else if (viewMode === 'h') {
+          const s = document.createElement('span');
+          s.className = 'val-h';
+          s.textContent = vh;
+          cell.appendChild(s);
+        }
+        // Tooltip
+        const tip = document.createElement('div');
+        tip.className = 'tooltip';
+        tip.textContent = `แถว${r+1} คอล${c+1}: W=${vw} × สะสมH → ${vv} รูป`;
+        cell.appendChild(tip);
+      }
+
+      // Mouse events
+      cell.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        isDragging = true;
+        dragValue = !gridState[r][c];
+        toggleCell(r, c, dragValue);
+      });
+      cell.addEventListener('mouseenter', () => {
+        if (isDragging) toggleCell(r, c, dragValue);
+      });
+
+      row.appendChild(cell);
+    }
+    wrap.appendChild(row);
+  }
+}
+
+document.addEventListener('mouseup', () => { isDragging = false; dragValue = null; });
+
+function toggleCell(r, c, val) {
+  if (val !== undefined) gridState[r][c] = val;
+  else gridState[r][c] = !gridState[r][c];
+  // Clear result when grid changes
+  resultData = null;
+  renderGrid();
+}
+
+function fillAll() {
+  gridState = Array.from({length: ROWS}, () => Array(COLS).fill(true));
+  resultData = null;
+  renderGrid();
+}
+
+function clearAll() {
+  gridState = Array.from({length: ROWS}, () => Array(COLS).fill(false));
+  resultData = null;
+  renderGrid();
+  document.getElementById('resultBody').innerHTML = `<div class="no-result"><span class="empty-icon">🔲</span>วาดรูปทรงแล้วกด <b>▶ คำนวณ</b></div>`;
+}
+
+function resizeGrid() {
+  const r = Math.max(2, Math.min(12, parseInt(document.getElementById('rowInput').value) || 6));
+  const c = Math.max(2, Math.min(12, parseInt(document.getElementById('colInput').value) || 6));
+  const newState = Array.from({length: r}, (_, ri) =>
+    Array.from({length: c}, (_, ci) => ri < ROWS && ci < COLS ? gridState[ri][ci] : false)
+  );
+  ROWS = r; COLS = c;
+  gridState = newState;
+  resultData = null;
+  renderGrid();
+}
+
+function loadPreset(key) {
+  const p = PRESETS[key];
+  if (!p) return;
+  initGrid(p.rows, p.cols, p.cells);
+  resultData = null;
+  document.getElementById('resultBody').innerHTML = `<div class="no-result"><span class="empty-icon">✏️</span>โหลดโจทย์แล้ว กด <b>▶ คำนวณ</b></div>`;
+  if (pyReady) runPython();
+}
+
+function setView(mode) {
+  viewMode = mode;
+  document.querySelectorAll('.vtab').forEach(t => t.classList.remove('active'));
+  document.getElementById('vt-' + mode).classList.add('active');
+  renderGrid();
+}
+
+// ─── Run Python ────────────────────────────────────────────────────────────────
+async function runPython() {
+  if (!pyReady) {
+    logPy('err', '>>> Python ยังโหลดไม่เสร็จ กรุณารอสักครู่');
+    return;
+  }
+
+  const filled = gridState.flat().filter(Boolean).length;
+  if (filled === 0) {
+    logPy('err', '>>> ไม่มีช่องที่เปิดอยู่ กรุณาวาดรูปก่อน');
+    return;
+  }
+
+  // Serialize grid
+  const gridJson = JSON.stringify(gridState.map(row => row.map(v => v ? 1 : 0)));
+  logPy('in', `>>> compute_rectangles(grid) — ${ROWS}×${COLS} grid, ${filled} cells filled`);
+
+  try {
+    const t0 = performance.now();
+    const resultJson = await pyodide.runPythonAsync(
+      `compute_rectangles(${JSON.stringify(gridJson)})`
+    );
+    const dt = (performance.now() - t0).toFixed(1);
+    resultData = JSON.parse(resultJson);
+
+    logPy('out', `>>> Total = ${resultData.total} rectangles  (computed in ${dt}ms)`);
+    logPy('out', `>>> Grid: ${ROWS}×${COLS}, filled cells: ${resultData.filled_cells}`);
+    logPy('out', `>>> Row sums: [${resultData.row_sums.join(', ')}]`);
+
+    renderGrid();
+    renderResults();
+  } catch(e) {
+    logPy('err', '>>> Error: ' + e.message);
+    console.error(e);
+  }
+}
+
+// ─── Results Rendering ────────────────────────────────────────────────────────
+function renderResults() {
+  if (!resultData) return;
+  const { total, row_sums, filled_cells, max_v, rows, cols } = resultData;
+  const maxRow = Math.max(...row_sums);
+
+  const rowBreakdown = row_sums.map((s, i) => {
+    const pct = maxRow > 0 ? (s / maxRow * 100).toFixed(0) : 0;
+    return `<div class="brow">
+      <span class="rlabel">แถว ${i+1}</span>
+      <div class="rbar-wrap"><div class="rbar" style="width:${pct}%"></div></div>
+      <span class="rval">${s}</span>
+    </div>`;
+  }).join('');
+
+  const equation = row_sums.filter(s=>s>0).join(' + ') + ' = ' + total;
+
+  document.getElementById('resultBody').innerHTML = `
+    <div class="result-main">
+      <div class="num">${total}</div>
+      <div class="label">รูปสี่เหลี่ยมผืนผ้า<br>ทั้งหมด</div>
+    </div>
+    <div class="result-meta">
+      <div class="meta-card blue">
+        <div class="mv">${filled_cells}</div>
+        <div class="ml">ช่องที่ใช้ได้</div>
+      </div>
+      <div class="meta-card teal">
+        <div class="mv">${max_v}</div>
+        <div class="ml">สูงสุดต่อช่อง</div>
+      </div>
+      <div class="meta-card amber">
+        <div class="mv">${rows}×${cols}</div>
+        <div class="ml">ขนาดกริด</div>
+      </div>
+    </div>
+
+    <div class="breakdown">
+      <div class="breakdown-title">สรุปรายแถว</div>
+      ${rowBreakdown}
+      <div style="margin-top:8px;padding:7px 10px;background:var(--teal-bg);border-radius:7px;font-size:12px;color:var(--teal);font-weight:600;text-align:center">
+        ${equation}
+      </div>
+    </div>
+
+    <div class="steps-section">
+      <div class="breakdown-title" style="margin-top:12px">วิธีคิด</div>
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-txt">สำหรับแต่ละช่อง นับ <b>W</b> (ช่องเติมต่อเนื่องไปซ้าย) และ <b>H</b> (ช่องเติมต่อเนื่องขึ้นบน)</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-txt">คำนวณ <b>V = Σ min(W แถวปัจจุบัน, W แถวก่อน, ...)</b> สะสมจากด้านล่างขึ้นไป h ชั้น</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-txt">V ของแต่ละช่อง = จำนวนสี่เหลี่ยมที่มี <b>มุมขวาล่างอยู่ที่ช่องนั้น</b> — แต่ละรูปถูกนับครั้งเดียวเท่านั้น</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">4</div>
+        <div class="step-txt">รวม V ทุกช่อง = <b>${total}</b> รูปสี่เหลี่ยมทั้งหมด (ไม่ต้องหักลบพื้นที่ซ้อน)</div>
+      </div>
+    </div>`;
+}
+
+// ─── Log ────────────────────────────────────────────────────────────────────
+function logPy(type, text) {
+  const console_ = document.getElementById('pyConsole');
+  const div = document.createElement('div');
+  div.className = 'py-' + type;
+  div.textContent = text;
+  console_.appendChild(div);
+  console_.scrollTop = console_.scrollHeight;
+  // keep last 30 lines
+  while (console_.children.length > 30) console_.removeChild(console_.firstChild);
+}
+
+// ─── Keyboard shortcut ───────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) runPython();
+});
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+initGrid(6, 6, null);
+initPyodide();
+</script>
+</body>
+</html>
